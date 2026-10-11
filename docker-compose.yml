@@ -1,0 +1,76 @@
+# Full stack: Postgres (RLS), Redis (BullMQ), migrations, API/voice gateway, worker, dashboard.
+#   cp .env.example .env    # mock mode works as-is
+#   docker compose up --build
+# Dashboard: http://localhost:3000  (admin@sonicbold.test / $SEED_ADMIN_PASSWORD)
+name: sonic-receptionist
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: sb_owner
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:-sb_owner_dev}
+      POSTGRES_DB: sonicbold
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sb_owner -d sonicbold"]
+      interval: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+
+  migrate:
+    build: { context: ., dockerfile: docker/api.Dockerfile }
+    command: ["pnpm", "--filter", "@sb/db", "migrate"]
+    environment:
+      MIGRATION_DATABASE_URL: postgres://sb_owner:${POSTGRES_OWNER_PASSWORD:-sb_owner_dev}@postgres:5432/sonicbold
+      SB_APP_DB_PASSWORD: ${SB_APP_DB_PASSWORD:-sb_app_dev}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: { context: ., dockerfile: docker/api.Dockerfile }
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://sb_app:${SB_APP_DB_PASSWORD:-sb_app_dev}@postgres:5432/sonicbold
+      REDIS_URL: redis://redis:6379
+      PORT: "4000"
+    ports: ["4000:4000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  worker:
+    build: { context: ., dockerfile: docker/api.Dockerfile }
+    command: ["node", "apps/api/dist/worker.js"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://sb_app:${SB_APP_DB_PASSWORD:-sb_app_dev}@postgres:5432/sonicbold
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  dashboard:
+    build: { context: ., dockerfile: docker/dashboard.Dockerfile }
+    environment:
+      API_URL: http://api:4000
+    ports: ["${DASHBOARD_PORT:-3001}:3000"]
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

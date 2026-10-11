@@ -1,0 +1,35 @@
+{
+  "name": "sonicbold-receptionist",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @sb/api --filter @sb/dashboard dev",
+    "dev:api": "pnpm --filter @sb/api dev",
+    "dev:worker": "pnpm --filter @sb/api dev:worker",
+    "dev:dashboard": "pnpm --filter @sb/dashboard dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint . --max-warnings=0",
+    "test": "pnpm -r test",
+    "test:scenarios": "pnpm --filter @sb/api test:scenarios",
+    "db:migrate": "pnpm --filter @sb/db migrate",
+    "db:seed": "pnpm --filter @sb/db seed",
+    "simulate": "pnpm --filter @sb/api simulate"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "tsx": "^4.20.3",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.57.1",
+    "vitest": "^4.1.11"
+  }
+}

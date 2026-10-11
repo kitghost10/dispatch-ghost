@@ -1,0 +1,76 @@
+# Render Blueprint (hosted option). Render web services support long-lived
+# WebSockets, which the Twilio Media Stream needs. Values marked sync:false
+# are entered in the Render dashboard and never committed.
+# See README "Deploy to Render" for the one-time sb_app role step.
+databases:
+  - name: sonicbold-db
+    databaseName: sonicbold
+    postgresMajorVersion: "17"
+
+services:
+  - type: keyvalue
+    name: sonicbold-redis
+    ipAllowList: []
+    maxmemoryPolicy: noeviction # required by BullMQ
+
+  - type: web
+    name: sonicbold-api
+    runtime: docker
+    dockerfilePath: ./docker/api.Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    preDeployCommand: pnpm --filter @sb/db migrate
+    envVars: &apiEnv
+      - key: APP_MODE
+        value: live
+      - key: MIGRATION_DATABASE_URL
+        fromDatabase: { name: sonicbold-db, property: connectionString }
+      - key: SB_APP_DB_PASSWORD
+        sync: false
+      - key: DATABASE_URL # postgres://sb_app:<SB_APP_DB_PASSWORD>@<host>/sonicbold
+        sync: false
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: sonicbold-redis, property: connectionString }
+      - key: PUBLIC_BASE_URL # https://<api host>
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: DASHBOARD_ORIGIN
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_AGENT_ID
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+
+  - type: worker
+    name: sonicbold-worker
+    runtime: docker
+    dockerfilePath: ./docker/api.Dockerfile
+    dockerContext: .
+    dockerCommand: node apps/api/dist/worker.js
+    envVars: *apiEnv
+
+  - type: web
+    name: sonicbold-dashboard
+    runtime: docker
+    dockerfilePath: ./docker/dashboard.Dockerfile
+    dockerContext: .
+    envVars:
+      - key: API_URL # https://<api host>
+        sync: false
